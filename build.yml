@@ -1,0 +1,1038 @@
+name: 듀얼 응원 APK 빌드
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Java 설치
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Flutter 설치
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.3'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter 프로젝트 기본 구조 생성
+        run: |
+          flutter create \
+            --org com.cheer.dual \
+            --project-name cheer_dual \
+            --platforms android \
+            project
+
+      # ─────────────────────────────────────────────────────────
+      #  소스 코드 전체 생성 (Python 스크립트로 모든 파일 작성)
+      # ─────────────────────────────────────────────────────────
+      - name: 소스 코드 생성
+        run: |
+          python3 << 'PYEOF'
+          import os
+
+          def w(path, content):
+              os.makedirs(os.path.dirname(path), exist_ok=True)
+              with open(path, 'w', encoding='utf-8') as f:
+                  f.write(content)
+
+          # ── pubspec.yaml ──────────────────────────────────────
+          w('project/pubspec.yaml', """name: cheer_dual
+description: 듀얼 태블릿 응원 앱
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  nearby_connections: ^4.0.0
+  image_picker: ^1.0.7
+  image: ^4.1.3
+  permission_handler: ^11.3.0
+  flutter_colorpicker: ^1.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+""")
+
+          # ── AndroidManifest.xml ───────────────────────────────
+          w('project/android/app/src/main/AndroidManifest.xml', """<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="tiramisu" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <application
+        android:label="듀얼 응원 앱"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <meta-data android:name="flutterEmbedding" android:value="2" />
+    </application>
+</manifest>
+""")
+
+          # ── lib/main.dart ─────────────────────────────────────
+          w('project/lib/main.dart', """import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'screens/home_screen.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  runApp(const CheerApp());
+}
+
+class CheerApp extends StatelessWidget {
+  const CheerApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: '듀얼 응원 앱',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0B0B15),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFFF6600),
+          surface: Color(0xFF1A1A2E),
+        ),
+      ),
+      home: const HomeScreen(),
+    );
+  }
+}
+""")
+
+          # ── lib/models/cheer_settings.dart ────────────────────
+          w('project/lib/models/cheer_settings.dart', """import 'dart:convert';
+import 'package:flutter/material.dart';
+
+class CheerSettings {
+  final String text;
+  final String textColor;
+  final String bgColor;
+  final String fontFamily;
+  final double fontSize;
+  final bool scrolling;
+  final String direction;
+  final double speed;
+  final bool blinking;
+  final int blinkSpeedMs;
+  final String? imageBase64;
+  final String imageEffect;
+  final double imageOpacity;
+  final String imagePosition;
+  final double imageSizePct;
+  final int startTimeMs;
+  final int version;
+
+  const CheerSettings({
+    this.text = '대구 FC 파이팅! \uD83D\uDD25',
+    this.textColor = '#FF6600',
+    this.bgColor = '#000022',
+    this.fontFamily = 'Impact',
+    this.fontSize = 88,
+    this.scrolling = true,
+    this.direction = 'left',
+    this.speed = 300,
+    this.blinking = false,
+    this.blinkSpeedMs = 600,
+    this.imageBase64,
+    this.imageEffect = 'none',
+    this.imageOpacity = 1.0,
+    this.imagePosition = 'after',
+    this.imageSizePct = 60,
+    this.startTimeMs = 0,
+    this.version = 0,
+  });
+
+  factory CheerSettings.initial() => CheerSettings(
+        startTimeMs: DateTime.now().millisecondsSinceEpoch,
+      );
+
+  factory CheerSettings.fromJson(Map<String, dynamic> j) => CheerSettings(
+        text: (j['text'] as String?) ?? '대구 FC 파이팅! \uD83D\uDD25',
+        textColor: (j['textColor'] as String?) ?? '#FF6600',
+        bgColor: (j['bgColor'] as String?) ?? '#000022',
+        fontFamily: (j['fontFamily'] as String?) ?? 'Impact',
+        fontSize: ((j['fontSize'] as num?) ?? 88).toDouble(),
+        scrolling: (j['scrolling'] as bool?) ?? true,
+        direction: (j['direction'] as String?) ?? 'left',
+        speed: ((j['speed'] as num?) ?? 300).toDouble(),
+        blinking: (j['blinking'] as bool?) ?? false,
+        blinkSpeedMs: (j['blinkSpeedMs'] as int?) ?? 600,
+        imageBase64: j['imageBase64'] as String?,
+        imageEffect: (j['imageEffect'] as String?) ?? 'none',
+        imageOpacity: ((j['imageOpacity'] as num?) ?? 1.0).toDouble(),
+        imagePosition: (j['imagePosition'] as String?) ?? 'after',
+        imageSizePct: ((j['imageSizePct'] as num?) ?? 60).toDouble(),
+        startTimeMs: (j['startTimeMs'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
+        version: (j['version'] as int?) ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'text': text, 'textColor': textColor, 'bgColor': bgColor,
+        'fontFamily': fontFamily, 'fontSize': fontSize,
+        'scrolling': scrolling, 'direction': direction, 'speed': speed,
+        'blinking': blinking, 'blinkSpeedMs': blinkSpeedMs,
+        'imageBase64': imageBase64, 'imageEffect': imageEffect,
+        'imageOpacity': imageOpacity, 'imagePosition': imagePosition,
+        'imageSizePct': imageSizePct, 'startTimeMs': startTimeMs, 'version': version,
+      };
+
+  String toJsonString() => jsonEncode(toJson());
+  static CheerSettings fromJsonString(String s) =>
+      CheerSettings.fromJson(jsonDecode(s) as Map<String, dynamic>);
+
+  CheerSettings copyWith({
+    String? text, String? textColor, String? bgColor,
+    String? fontFamily, double? fontSize, bool? scrolling,
+    String? direction, double? speed, bool? blinking,
+    int? blinkSpeedMs, String? imageBase64, bool clearImage = false,
+    String? imageEffect, double? imageOpacity, String? imagePosition,
+    double? imageSizePct, int? startTimeMs, int? version,
+  }) => CheerSettings(
+        text: text ?? this.text,
+        textColor: textColor ?? this.textColor,
+        bgColor: bgColor ?? this.bgColor,
+        fontFamily: fontFamily ?? this.fontFamily,
+        fontSize: fontSize ?? this.fontSize,
+        scrolling: scrolling ?? this.scrolling,
+        direction: direction ?? this.direction,
+        speed: speed ?? this.speed,
+        blinking: blinking ?? this.blinking,
+        blinkSpeedMs: blinkSpeedMs ?? this.blinkSpeedMs,
+        imageBase64: clearImage ? null : (imageBase64 ?? this.imageBase64),
+        imageEffect: imageEffect ?? this.imageEffect,
+        imageOpacity: imageOpacity ?? this.imageOpacity,
+        imagePosition: imagePosition ?? this.imagePosition,
+        imageSizePct: imageSizePct ?? this.imageSizePct,
+        startTimeMs: startTimeMs ?? this.startTimeMs,
+        version: version ?? this.version,
+      );
+
+  Color get textColorValue => _hex(textColor);
+  Color get bgColorValue => _hex(bgColor);
+  static Color _hex(String h) {
+    final c = h.replaceAll('#', '').padLeft(6, '0');
+    return Color(int.parse('FF\$c', radix: 16));
+  }
+  static String colorToHex(Color c) =>
+      '#\${c.red.toRadixString(16).padLeft(2,'0')}'
+      '\${c.green.toRadixString(16).padLeft(2,'0')}'
+      '\${c.blue.toRadixString(16).padLeft(2,'0')}';
+
+  static const List<Map<String, String>> fontOptions = [
+    {'label': 'Impact (굵음)', 'value': 'Impact'},
+    {'label': '맑은 고딕', 'value': 'MalgunGothic'},
+    {'label': '바탕 (명조)', 'value': 'Batang'},
+    {'label': '돋움', 'value': 'Dotum'},
+    {'label': 'Sans-serif', 'value': 'sans-serif'},
+  ];
+
+  TextStyle get displayTextStyle => TextStyle(
+        fontFamily: fontFamily,
+        fontWeight: FontWeight.w900,
+        fontSize: fontSize,
+        color: textColorValue,
+        letterSpacing: 4,
+        shadows: [
+          Shadow(color: textColorValue.withOpacity(0.5), blurRadius: 30),
+        ],
+      );
+}
+""")
+
+          # ── lib/services/nearby_service.dart ──────────────────
+          w('project/lib/services/nearby_service.dart', """import 'dart:async';
+import 'dart:typed_data';
+import 'package:nearby_connections/nearby_connections.dart';
+import '../models/cheer_settings.dart';
+
+enum ConnType { wifiDirect, bluetooth }
+enum TabletSide { left, right }
+
+class NearbyService {
+  static const String _serviceId = 'com.cheer.dual.app';
+  final ConnType connType;
+  final TabletSide side;
+  final _nearby = Nearby();
+  final _ids = <String>{};
+  final _settingsCtrl = StreamController<CheerSettings>.broadcast();
+  final _statusCtrl = StreamController<String>.broadcast();
+  final _connCtrl = StreamController<int>.broadcast();
+
+  Stream<CheerSettings> get settingsStream => _settingsCtrl.stream;
+  Stream<String> get statusStream => _statusCtrl.stream;
+  Stream<int> get connCountStream => _connCtrl.stream;
+  bool get isConnected => _ids.isNotEmpty;
+
+  NearbyService({required this.connType, required this.side});
+
+  Future<void> start() async {
+    side == TabletSide.left ? await _advertise() : await _discover();
+  }
+
+  Future<void> _advertise() async {
+    try {
+      await _nearby.startAdvertising('왼쪽태블릿', Strategy.P2P_POINT_TO_POINT,
+          onConnectionInitiated: _onInit,
+          onConnectionResult: _onResult,
+          onDisconnected: _onDisc,
+          serviceId: _serviceId);
+      _log(connType == ConnType.wifiDirect
+          ? '📶 WiFi Direct 대기 중...' : '\uD83D\uDD35 Bluetooth 대기 중...');
+    } catch (e) { _log('❌ 광고 실패: \$e'); }
+  }
+
+  Future<void> _discover() async {
+    try {
+      await _nearby.startDiscovery('오른쪽태블릿', Strategy.P2P_POINT_TO_POINT,
+          onEndpointFound: (id, name, _) async {
+            _log('발견: \$name → 연결 중...');
+            try {
+              await _nearby.requestConnection('오른쪽태블릿', id,
+                  onConnectionInitiated: _onInit,
+                  onConnectionResult: _onResult,
+                  onDisconnected: _onDisc);
+            } catch (e) { _log('연결 요청 실패: \$e'); }
+          },
+          onEndpointLost: (_) => _log('신호 끊김...'),
+          serviceId: _serviceId);
+      _log(connType == ConnType.wifiDirect
+          ? '📶 WiFi Direct 검색 중...' : '\uD83D\uDD35 Bluetooth 검색 중...');
+    } catch (e) { _log('❌ 검색 실패: \$e'); }
+  }
+
+  void _onInit(String id, ConnectionInfo info) {
+    _log('연결 수락 중: \${info.endpointName}');
+    _nearby.acceptConnection(id,
+        onPayLoadRecieved: _onPayload,
+        onPayloadTransferUpdate: (_, __) {});
+  }
+
+  void _onResult(String id, Status status) {
+    if (status == Status.CONNECTED) {
+      _ids.add(id);
+      _log('✅ 연결 완료! (\${_ids.length}대)');
+    } else {
+      _ids.remove(id);
+      _log('연결 실패');
+    }
+    _connCtrl.add(_ids.length);
+  }
+
+  void _onDisc(String id) {
+    _ids.remove(id);
+    _log('연결 해제 (\${_ids.length}대)');
+    _connCtrl.add(_ids.length);
+  }
+
+  void _onPayload(String _, Payload p) {
+    if (p.type == PayloadType.BYTES && p.bytes != null) {
+      try {
+        _settingsCtrl.add(CheerSettings.fromJsonString(String.fromCharCodes(p.bytes!)));
+      } catch (_) {}
+    }
+  }
+
+  Future<bool> sendSettings(CheerSettings s) async {
+    if (_ids.isEmpty) { _log('⚠️ 연결된 기기 없음'); return false; }
+    final bytes = Uint8List.fromList(s.toJsonString().codeUnits);
+    int sent = 0;
+    for (final id in Set.of(_ids)) {
+      try { await _nearby.sendBytesPayload(id, bytes); sent++; } catch (_) {}
+    }
+    if (sent > 0) _log('📤 동기화 완료');
+    return sent > 0;
+  }
+
+  Future<void> stop() async {
+    try {
+      await _nearby.stopAdvertising();
+      await _nearby.stopDiscovery();
+      await _nearby.stopAllEndpoints();
+    } catch (_) {}
+    _ids.clear();
+    if (!_connCtrl.isClosed) _connCtrl.add(0);
+  }
+
+  void dispose() {
+    stop();
+    _settingsCtrl.close();
+    _statusCtrl.close();
+    _connCtrl.close();
+  }
+
+  void _log(String m) { if (!_statusCtrl.isClosed) _statusCtrl.add(m); }
+}
+""")
+
+          # ── lib/services/image_processor.dart ─────────────────
+          w('project/lib/services/image_processor.dart', """import 'dart:math';
+import 'dart:typed_data';
+import 'package:image/image.dart' as img;
+
+class ImageProcessor {
+  static Future<Uint8List> compress(Uint8List raw, {int quality=60, int max=700}) async {
+    final d = img.decodeImage(raw);
+    if (d == null) return raw;
+    img.Image r = d;
+    if (d.width > max || d.height > max) {
+      final ratio = min(max / d.width, max / d.height);
+      r = img.copyResize(d,
+          width: (d.width*ratio).round(),
+          height: (d.height*ratio).round(),
+          interpolation: img.Interpolation.linear);
+    }
+    return Uint8List.fromList(img.encodeJpg(r, quality: quality));
+  }
+
+  static Future<Uint8List> sobelEdge(Uint8List raw, {int maxSz=550, double thr=22}) async {
+    final d = img.decodeImage(raw);
+    if (d == null) return raw;
+    img.Image s = d;
+    if (s.width > maxSz || s.height > maxSz) {
+      final r = min(maxSz/s.width, maxSz/s.height);
+      s = img.copyResize(d,
+          width: (s.width*r).round(), height: (s.height*r).round(),
+          interpolation: img.Interpolation.linear);
+    }
+    final w = s.width, h = s.height;
+    final g = List<double>.filled(w*h, 0.0);
+    for (int y=0; y<h; y++) for (int x=0; x<w; x++) {
+      final p = s.getPixel(x, y);
+      g[y*w+x] = 0.299*p.r + 0.587*p.g + 0.114*p.b;
+    }
+    final out = img.Image(width: w, height: h, numChannels: 4);
+    for (int y=1; y<h-1; y++) for (int x=1; x<w-1; x++) {
+      double p(int dy, int dx) => g[(y+dy)*w+(x+dx)];
+      final gx = -p(-1,-1)+p(-1,1)-2*p(0,-1)+2*p(0,1)-p(1,-1)+p(1,1);
+      final gy = -p(-1,-1)-2*p(-1,0)-p(-1,1)+p(1,-1)+2*p(1,0)+p(1,1);
+      final mag = sqrt(gx*gx+gy*gy);
+      if (mag > thr) out.setPixelRgba(x,y,255,255,255,255);
+      else out.setPixelRgba(x,y,0,0,0,0);
+    }
+    return Uint8List.fromList(img.encodePng(out));
+  }
+}
+""")
+
+          # ── lib/screens/home_screen.dart ──────────────────────
+          w('project/lib/screens/home_screen.dart', """import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../services/nearby_service.dart';
+import 'display_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+  @override State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  TabletSide? _side;
+  ConnType _conn = ConnType.wifiDirect;
+  bool _loading = false;
+  static const _orange = Color(0xFFFF6600);
+
+  Future<void> _start() async {
+    if (_side == null || _loading) return;
+    setState(() => _loading = true);
+    final perms = await [
+      Permission.locationWhenInUse, Permission.nearbyWifiDevices,
+      Permission.bluetoothScan, Permission.bluetoothConnect,
+      Permission.bluetoothAdvertise, Permission.photos,
+    ].request();
+    final denied = perms.values.where((s) =>
+        s == PermissionStatus.denied || s == PermissionStatus.permanentlyDenied);
+    if (denied.isNotEmpty && mounted) {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('권한 거부됨 — 설정에서 허용 후 재시도'),
+        backgroundColor: Colors.red));
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(
+      builder: (_) => DisplayScreen(
+        service: NearbyService(connType: _conn, side: _side!),
+        side: _side!)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B0B15),
+      body: SafeArea(child: SingleChildScrollView(
+        padding: const EdgeInsets.all(28),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Text('⚽', style: TextStyle(fontSize: 44)),
+            const SizedBox(width: 16),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('듀얼 응원 앱',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _orange)),
+              Text('인터넷 없이 WiFi Direct / Bluetooth 동기화',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            ]),
+          ]),
+          const SizedBox(height: 32),
+          _lbl('연결 방식'),
+          const SizedBox(height: 10),
+          Row(children: [
+            _ConnCard(icon:'📶', title:'WiFi Direct', desc:'빠름·이미지 유리',
+              tip:'WiFi를 켜세요', active:_conn==ConnType.wifiDirect,
+              onTap:()=>setState(()=>_conn=ConnType.wifiDirect)),
+            const SizedBox(width: 12),
+            _ConnCard(icon:'\uD83D\uDD35', title:'Bluetooth', desc:'안정적·약10m',
+              tip:'블루투스를 켜세요', active:_conn==ConnType.bluetooth,
+              onTap:()=>setState(()=>_conn=ConnType.bluetooth)),
+          ]),
+          const SizedBox(height: 28),
+          _lbl('이 태블릿의 역할'),
+          const SizedBox(height: 10),
+          Row(children: [
+            _RoleCard(sym:'◀', title:'왼쪽 태블릿', desc:'먼저 시작(HOST)',
+              color:const Color(0xFF3366FF), active:_side==TabletSide.left,
+              onTap:()=>setState(()=>_side=TabletSide.left)),
+            const SizedBox(width: 12),
+            _RoleCard(sym:'▶', title:'오른쪽 태블릿', desc:'나중에 시작(CLIENT)',
+              color:_orange, active:_side==TabletSide.right,
+              onTap:()=>setState(()=>_side=TabletSide.right)),
+          ]),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: const Color(0xFF111120),
+              borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('💡 사용 순서', style: TextStyle(color:Colors.grey[400], fontWeight:FontWeight.bold, fontSize:13)),
+              const SizedBox(height: 8),
+              ...['1. 왼쪽 태블릿 먼저 시작','2. 오른쪽 태블릿 시작 (자동 연결)',
+                  '3. 연결 후 화면 탭 → 컨트롤러 열림','4. 설정 후 전송 버튼으로 동기화']
+                .map((s) => Padding(padding: const EdgeInsets.only(bottom:3),
+                  child: Text(s, style: TextStyle(color:Colors.grey[600], fontSize:12)))),
+            ]),
+          ),
+          const SizedBox(height: 28),
+          SizedBox(width: double.infinity,
+            child: ElevatedButton(
+              onPressed: (_side != null && !_loading) ? _start : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _orange,
+                disabledBackgroundColor: Colors.grey[800],
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              child: _loading
+                ? const SizedBox(width:24, height:24,
+                    child: CircularProgressIndicator(color:Colors.white, strokeWidth:2.5))
+                : Text(_side == null ? '역할을 먼저 선택하세요' : '🚀  시작하기',
+                    style: const TextStyle(fontSize:17, fontWeight:FontWeight.w900, color:Colors.white)))),
+        ]))));
+  }
+
+  Widget _lbl(String t) => Text(t,
+    style: const TextStyle(color:Color(0xFFFF6600), fontWeight:FontWeight.bold, fontSize:13));
+}
+
+class _ConnCard extends StatelessWidget {
+  final String icon,title,desc,tip; final bool active; final VoidCallback onTap;
+  const _ConnCard({required this.icon,required this.title,required this.desc,
+    required this.tip,required this.active,required this.onTap});
+  @override Widget build(BuildContext context) => Expanded(child: GestureDetector(onTap:onTap,
+    child: AnimatedContainer(duration:const Duration(milliseconds:180),
+      padding:const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF162016) : const Color(0xFF11111E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: active ? const Color(0xFF44BB44) : Colors.white10,
+          width: active ? 2 : 1)),
+      child: Column(crossAxisAlignment:CrossAxisAlignment.start, children: [
+        Text(icon, style:const TextStyle(fontSize:26)),
+        const SizedBox(height:6),
+        Text(title, style:TextStyle(color:active?Colors.white:Colors.grey[400],
+          fontWeight:FontWeight.bold, fontSize:14)),
+        const SizedBox(height:3),
+        Text(desc, style:TextStyle(color:Colors.grey[600], fontSize:11)),
+        const SizedBox(height:8),
+        Container(padding:const EdgeInsets.symmetric(horizontal:7,vertical:3),
+          decoration:BoxDecoration(color:Colors.white.withOpacity(0.05),
+            borderRadius:BorderRadius.circular(5)),
+          child:Text('⚙ \$tip', style:const TextStyle(color:Color(0xFF888888),fontSize:10))),
+      ]))));
+}
+
+class _RoleCard extends StatelessWidget {
+  final String sym,title,desc; final Color color; final bool active; final VoidCallback onTap;
+  const _RoleCard({required this.sym,required this.title,required this.desc,
+    required this.color,required this.active,required this.onTap});
+  @override Widget build(BuildContext context) => Expanded(child: GestureDetector(onTap:onTap,
+    child: AnimatedContainer(duration:const Duration(milliseconds:180),
+      padding:const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: active ? color.withOpacity(0.12) : const Color(0xFF11111E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color:active?color:Colors.white10, width:active?2:1)),
+      child: Column(crossAxisAlignment:CrossAxisAlignment.start, children: [
+        Text(sym, style:TextStyle(fontSize:30, color:active?color:Colors.grey[700])),
+        const SizedBox(height:8),
+        Text(title, style:TextStyle(color:active?Colors.white:Colors.grey[400],
+          fontWeight:FontWeight.bold, fontSize:14)),
+        const SizedBox(height:5),
+        Text(desc, style:TextStyle(color:Colors.grey[600], fontSize:11, height:1.5)),
+      ]))));
+}
+""")
+
+          # ── lib/screens/display_screen.dart ───────────────────
+          w('project/lib/screens/display_screen.dart', """import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:image_picker/image_picker.dart';
+import '../models/cheer_settings.dart';
+import '../services/nearby_service.dart';
+import '../services/image_processor.dart';
+
+class DisplayScreen extends StatefulWidget {
+  final NearbyService service;
+  final TabletSide side;
+  const DisplayScreen({super.key, required this.service, required this.side});
+  @override State<DisplayScreen> createState() => _DisplayScreenState();
+}
+
+class _DisplayScreenState extends State<DisplayScreen> with TickerProviderStateMixin {
+  CheerSettings _s = CheerSettings.initial();
+  late AnimationController _panelCtrl;
+  late Animation<Offset> _panelSlide;
+  bool _panelOpen = false;
+  late Ticker _ticker;
+  double _scrollPos = 0, _contentW = 600;
+  final _contentKey = GlobalKey();
+  bool _blinkOn = true;
+  Timer? _blinkTimer;
+  int _connCount = 0;
+  String _statusMsg = '연결 중...';
+  StreamSubscription? _sSub, _stSub, _cSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _panelCtrl = AnimationController(vsync:this, duration:const Duration(milliseconds:300));
+    _panelSlide = Tween<Offset>(begin:const Offset(0,1), end:Offset.zero)
+        .animate(CurvedAnimation(parent:_panelCtrl, curve:Curves.easeOutCubic));
+    _ticker = createTicker(_onTick)..start();
+    _sSub = widget.service.settingsStream.listen((s) { setState(()=>_s=s); _resetBlink(); });
+    _stSub = widget.service.statusStream.listen((m) => setState(()=>_statusMsg=m));
+    _cSub = widget.service.connCountStream.listen((c) => setState(()=>_connCount=c));
+    widget.service.start();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  @override
+  void dispose() {
+    _panelCtrl.dispose(); _ticker.dispose(); _blinkTimer?.cancel();
+    _sSub?.cancel(); _stSub?.cancel(); _cSub?.cancel();
+    widget.service.dispose();
+    super.dispose();
+  }
+
+  void _onTick(Duration _) {
+    if (!_s.scrolling || !mounted) return;
+    final W = MediaQuery.of(context).size.width;
+    final total = W * 2;
+    final travel = total + _contentW + 40;
+    final elapsed = (DateTime.now().millisecondsSinceEpoch - _s.startTimeMs) / 1000.0;
+    final dist = (elapsed * _s.speed) % travel;
+    final absX = _s.direction == 'left' ? total + 20 - dist : dist - _contentW - 20;
+    setState(() => _scrollPos = absX - (widget.side == TabletSide.right ? W : 0));
+  }
+
+  void _resetBlink() {
+    _blinkTimer?.cancel();
+    if (!_s.blinking) { setState(()=>_blinkOn=true); return; }
+    _blinkTimer = Timer.periodic(Duration(milliseconds:_s.blinkSpeedMs),
+        (_) => setState(()=>_blinkOn=!_blinkOn));
+  }
+
+  double _staticX(double W) {
+    final c = W - _contentW / 2;
+    return widget.side == TabletSide.right ? c - W : c;
+  }
+
+  void _measure() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final w = _contentKey.currentContext?.size?.width ?? _contentW;
+      if (w > 0 && w != _contentW) setState(()=>_contentW=w);
+    });
+  }
+
+  void _togglePanel() {
+    setState(()=>_panelOpen=!_panelOpen);
+    _panelOpen ? _panelCtrl.forward() : _panelCtrl.reverse();
+  }
+
+  Future<void> _apply(CheerSettings next) async {
+    setState(()=>_s=next); _resetBlink();
+    await widget.service.sendSettings(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _measure();
+    final W = MediaQuery.of(context).size.width;
+    final xPos = _s.scrolling ? _scrollPos : _staticX(W);
+    return Scaffold(
+      backgroundColor: _s.bgColorValue,
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _panelOpen ? null : _togglePanel,
+        child: Stack(children: [
+          Positioned(left:-99999, top:0, child:_Content(key:_contentKey, s:_s)),
+          ClipRect(child: SizedBox.expand(child: Opacity(opacity:_blinkOn?1.0:0.0,
+            child: Stack(children: [
+              Positioned(left:xPos, top:0, bottom:0, child:Center(child:_Content(s:_s))),
+            ])))),
+          Positioned(top:12, left:12, child:_Badge(side:widget.side, conn:_connCount, msg:_statusMsg)),
+          if (_connCount==0 && !_panelOpen) IgnorePointer(child:Center(child:Column(
+            mainAxisSize:MainAxisSize.min, children:[
+              Text(widget.side==TabletSide.left ? '📡 오른쪽 태블릿 연결 대기 중...' : '🔍 왼쪽 태블릿 검색 중...',
+                style:TextStyle(color:Colors.white.withOpacity(0.25), fontSize:16, fontWeight:FontWeight.bold)),
+              const SizedBox(height:6),
+              Text('화면을 탭하면 컨트롤러 열림',
+                style:TextStyle(color:Colors.white.withOpacity(0.15), fontSize:12)),
+            ]))),
+          SlideTransition(position:_panelSlide, child:Align(alignment:Alignment.bottomCenter,
+            child:_Panel(settings:_s, conn:_connCount, onClose:_togglePanel, onApply:_apply))),
+        ])));
+  }
+}
+
+class _Content extends StatelessWidget {
+  final CheerSettings s;
+  const _Content({super.key, required this.s});
+  @override Widget build(BuildContext context) {
+    final imgH = MediaQuery.of(context).size.height * (s.imageSizePct/100);
+    Widget? imgW;
+    if (s.imageBase64 != null) {
+      imgW = Opacity(opacity:s.imageOpacity, child: Image.memory(
+        base64Decode(s.imageBase64!), height:imgH, fit:BoxFit.contain));
+    }
+    return Row(mainAxisSize:MainAxisSize.min, crossAxisAlignment:CrossAxisAlignment.center, children:[
+      if (imgW!=null && s.imagePosition=='before') ...[imgW, const SizedBox(width:24)],
+      Text(s.text, style:s.displayTextStyle),
+      if (imgW!=null && s.imagePosition=='after') ...[const SizedBox(width:24), imgW],
+    ]);
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final TabletSide side; final int conn; final String msg;
+  const _Badge({required this.side, required this.conn, required this.msg});
+  @override Widget build(BuildContext context) => Container(
+    padding:const EdgeInsets.symmetric(horizontal:12, vertical:6),
+    decoration:BoxDecoration(color:Colors.black54, borderRadius:BorderRadius.circular(999),
+      border:Border.all(color:conn>0?const Color(0xFF44FF44):Colors.white24)),
+    child:Row(mainAxisSize:MainAxisSize.min, children:[
+      Icon(Icons.circle, size:7, color:conn>0?const Color(0xFF44FF44):Colors.grey),
+      const SizedBox(width:6),
+      Text(side==TabletSide.left?'◀ 왼쪽':'오른쪽 ▶',
+        style:const TextStyle(color:Colors.white, fontSize:12, fontWeight:FontWeight.bold)),
+      if (conn>0)...[const SizedBox(width:6),
+        const Text('• 연결됨', style:TextStyle(color:Color(0xFF44FF44), fontSize:11))],
+    ]));
+}
+
+class _Panel extends StatefulWidget {
+  final CheerSettings settings; final int conn;
+  final VoidCallback onClose; final Future<void> Function(CheerSettings) onApply;
+  const _Panel({required this.settings, required this.conn,
+    required this.onClose, required this.onApply});
+  @override State<_Panel> createState() => _PanelState();
+}
+
+class _PanelState extends State<_Panel> {
+  late CheerSettings _s;
+  late TextEditingController _tc;
+  bool _sending=false, _imgBusy=false;
+  Uint8List? _rawImg;
+  final _picker = ImagePicker();
+  static const _o = Color(0xFFFF6600);
+
+  @override void initState() { super.initState(); _s=widget.settings; _tc=TextEditingController(text:_s.text); }
+  @override void dispose() { _tc.dispose(); super.dispose(); }
+  void _u(CheerSettings n) => setState(()=>_s=n);
+
+  Future<void> _pickImg() async {
+    final xf = await _picker.pickImage(source:ImageSource.gallery);
+    if (xf==null) return;
+    final b = await xf.readAsBytes();
+    _rawImg = b; setState(()=>_imgBusy=true);
+    final c = await ImageProcessor.compress(b);
+    setState(()=>_imgBusy=false);
+    _u(_s.copyWith(imageBase64:base64Encode(c)));
+  }
+
+  Future<void> _applyFx(String fx) async {
+    if (_rawImg==null) return;
+    setState(()=>_imgBusy=true);
+    final p = fx=='edge' ? await ImageProcessor.sobelEdge(_rawImg!) : await ImageProcessor.compress(_rawImg!);
+    setState(()=>_imgBusy=false);
+    _u(_s.copyWith(imageBase64:base64Encode(p), imageEffect:fx));
+  }
+
+  Future<void> _send() async {
+    setState(()=>_sending=true);
+    final n = _s.copyWith(startTimeMs:DateTime.now().millisecondsSinceEpoch, version:_s.version+1);
+    await widget.onApply(n);
+    setState(()=>_s=n; _sending=false);
+  }
+
+  Future<void> _pickColor(String key) async {
+    Color cur = key=='text' ? _s.textColorValue : _s.bgColorValue;
+    Color picked = cur;
+    await showDialog(context:context, builder:(_)=>AlertDialog(
+      backgroundColor:const Color(0xFF1A1A2E),
+      title:Text(key=='text'?'글자 색':'배경 색', style:const TextStyle(color:Colors.white)),
+      content:SingleChildScrollView(child:ColorPicker(pickerColor:cur, onColorChanged:(c)=>picked=c)),
+      actions:[
+        TextButton(onPressed:()=>Navigator.pop(context), child:const Text('취소')),
+        ElevatedButton(style:ElevatedButton.styleFrom(backgroundColor:_o),
+          onPressed:()=>Navigator.pop(context),
+          child:const Text('확인', style:TextStyle(color:Colors.white))),
+      ]));
+    if (key=='text') _u(_s.copyWith(textColor:CheerSettings.colorToHex(picked)));
+    else _u(_s.copyWith(bgColor:CheerSettings.colorToHex(picked)));
+  }
+
+  @override Widget build(BuildContext context) {
+    final bot = MediaQuery.of(context).padding.bottom;
+    return GestureDetector(onTap:(){},
+      child:Container(
+        height:MediaQuery.of(context).size.height*0.85,
+        decoration:const BoxDecoration(color:Color(0xFF0E0E1C),
+          borderRadius:BorderRadius.vertical(top:Radius.circular(22)),
+          border:Border(top:BorderSide(color:Color(0xFF2A2A3A)))),
+        child:Column(children:[
+          const SizedBox(height:10),
+          Container(width:38,height:4,decoration:BoxDecoration(color:Colors.white24,borderRadius:BorderRadius.circular(2))),
+          Padding(padding:const EdgeInsets.symmetric(horizontal:18,vertical:8),
+            child:Row(children:[
+              const Text('🎛️  컨트롤러', style:TextStyle(color:Colors.white,fontWeight:FontWeight.bold,fontSize:16)),
+              const Spacer(),
+              Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:4),
+                decoration:BoxDecoration(color:widget.conn>0?const Color(0xFF1A3A1A):const Color(0xFF2A1A1A),
+                  borderRadius:BorderRadius.circular(999)),
+                child:Text(widget.conn>0?'✅ \${widget.conn}대 연결됨':'⚠️ 연결 없음',
+                  style:TextStyle(color:widget.conn>0?const Color(0xFF44FF44):Colors.orange, fontSize:11))),
+              const SizedBox(width:8),
+              IconButton(icon:const Icon(Icons.close,color:Colors.grey,size:22), onPressed:widget.onClose),
+            ])),
+          const Divider(color:Colors.white10,height:1),
+          Expanded(child:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(18,14,18,10),
+            child:Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
+
+              _sec('📝  문구'),
+              TextField(controller:_tc, onChanged:(v)=>_u(_s.copyWith(text:v)),
+                style:const TextStyle(color:Colors.white,fontSize:15), maxLines:2,
+                decoration:_deco('응원 문구 입력')),
+
+              _sec('🎨  색상'),
+              Row(children:[
+                Expanded(child:_colorBtn('글자 색',_s.textColorValue,()=>_pickColor('text'))),
+                const SizedBox(width:10),
+                Expanded(child:_colorBtn('배경 색',_s.bgColorValue,()=>_pickColor('bg'))),
+              ]),
+
+              _sec('✍️  글자체'),
+              Wrap(spacing:8,runSpacing:8, children:CheerSettings.fontOptions.map((f)=>
+                _pill(f['label']!,_s.fontFamily==f['value'],()=>_u(_s.copyWith(fontFamily:f['value'])))).toList()),
+
+              _sec('📏  글자 크기'),
+              _sld('크기 \${_s.fontSize.round()}px',_s.fontSize,24,250,(v)=>_u(_s.copyWith(fontSize:v))),
+
+              _sec('🏃  이동'),
+              Row(children:[
+                _pill('⏸ 정지',!_s.scrolling,()=>_u(_s.copyWith(scrolling:false))),
+                const SizedBox(width:8),
+                _pill('▶ 흐름',_s.scrolling,()=>_u(_s.copyWith(scrolling:true))),
+              ]),
+              if (_s.scrolling)...[
+                const SizedBox(height:10),
+                Row(children:[
+                  _pill('← 왼쪽',_s.direction=='left',()=>_u(_s.copyWith(direction:'left'))),
+                  const SizedBox(width:8),
+                  _pill('오른쪽 →',_s.direction=='right',()=>_u(_s.copyWith(direction:'right'))),
+                ]),
+                const SizedBox(height:10),
+                _sld('속도 \${_s.speed.round()}px/s',_s.speed,50,800,(v)=>_u(_s.copyWith(speed:v))),
+              ],
+
+              _sec('✨  깜빡임'),
+              Row(children:[
+                _pill('없음',!_s.blinking,()=>_u(_s.copyWith(blinking:false))),
+                const SizedBox(width:8),
+                _pill('깜빡임',_s.blinking,()=>_u(_s.copyWith(blinking:true))),
+              ]),
+              if (_s.blinking)...[
+                const SizedBox(height:10),
+                _sld('주기 \${_s.blinkSpeedMs}ms',_s.blinkSpeedMs.toDouble(),80,2000,
+                  (v)=>_u(_s.copyWith(blinkSpeedMs:v.round()))),
+              ],
+
+              _sec('🖼️  이미지'),
+              OutlinedButton.icon(
+                onPressed:_imgBusy?null:_pickImg,
+                icon:const Icon(Icons.photo_library_outlined,color:_o),
+                label:const Text('갤러리에서 사진 선택',style:TextStyle(color:_o)),
+                style:OutlinedButton.styleFrom(side:const BorderSide(color:_o),
+                  padding:const EdgeInsets.symmetric(vertical:12,horizontal:16))),
+              if (_imgBusy) const Padding(padding:EdgeInsets.only(top:8),
+                child:Row(children:[SizedBox(width:14,height:14,
+                  child:CircularProgressIndicator(strokeWidth:2,color:_o)),
+                  SizedBox(width:8),Text('처리 중...',style:TextStyle(color:Colors.orange,fontSize:12))])),
+              if (_s.imageBase64!=null)...[
+                const SizedBox(height:10),
+                Wrap(spacing:8,runSpacing:8, children:[
+                  _pill('원본',_s.imageEffect=='none',()=>_applyFx('none')),
+                  _pill('실루엣',_s.imageEffect=='silhouette',()=>_applyFx('silhouette')),
+                  _pill('테두리선',_s.imageEffect=='edge',()=>_applyFx('edge')),
+                ]),
+                const SizedBox(height:8),
+                Row(children:[
+                  _pill('◀ 텍스트 앞',_s.imagePosition=='before',()=>_u(_s.copyWith(imagePosition:'before'))),
+                  const SizedBox(width:8),
+                  _pill('텍스트 뒤 ▶',_s.imagePosition=='after',()=>_u(_s.copyWith(imagePosition:'after'))),
+                ]),
+                const SizedBox(height:8),
+                _sld('이미지 크기 \${_s.imageSizePct.round()}%',_s.imageSizePct,10,100,(v)=>_u(_s.copyWith(imageSizePct:v))),
+                _sld('투명도 \${(_s.imageOpacity*100).round()}%',_s.imageOpacity,0.1,1.0,(v)=>_u(_s.copyWith(imageOpacity:v))),
+                TextButton(onPressed:()=>_u(_s.copyWith(clearImage:true)),
+                  child:const Text('✕ 이미지 제거',style:TextStyle(color:Colors.grey))),
+              ],
+            ]))),
+          Padding(padding:EdgeInsets.fromLTRB(18,0,18,bot+14),
+            child:SizedBox(width:double.infinity,
+              child:ElevatedButton(
+                onPressed:_sending?null:_send,
+                style:ElevatedButton.styleFrom(
+                  backgroundColor:_o, disabledBackgroundColor:Colors.grey[800],
+                  padding:const EdgeInsets.symmetric(vertical:16),
+                  shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
+                child:_sending
+                  ? const SizedBox(width:20,height:20,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2.5))
+                  : const Text('📡  적용 & 동기화 전송',
+                      style:TextStyle(color:Colors.white,fontSize:16,fontWeight:FontWeight.bold))))),
+        ])));
+  }
+
+  Widget _sec(String t) => Padding(padding:const EdgeInsets.only(top:18,bottom:8),
+    child:Text(t,style:const TextStyle(color:Color(0xFFFF6600),fontWeight:FontWeight.bold,fontSize:12)));
+
+  Widget _pill(String label,bool active,VoidCallback onTap) =>
+    GestureDetector(onTap:onTap, child:AnimatedContainer(duration:const Duration(milliseconds:150),
+      padding:const EdgeInsets.symmetric(horizontal:14,vertical:8),
+      decoration:BoxDecoration(
+        color:active?_o:const Color(0xFF1C1C28),
+        borderRadius:BorderRadius.circular(999),
+        border:Border.all(color:active?_o:const Color(0xFF333344))),
+      child:Text(label,style:TextStyle(color:active?Colors.white:Colors.grey[500],
+        fontWeight:active?FontWeight.bold:FontWeight.normal, fontSize:13))));
+
+  Widget _sld(String label,double val,double min,double max,ValueChanged<double> cb) =>
+    Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
+      Text(label,style:const TextStyle(color:Colors.grey,fontSize:11)),
+      Slider(value:val.clamp(min,max),min:min,max:max,onChanged:cb,
+        activeColor:_o, inactiveColor:const Color(0xFF333344)),
+    ]);
+
+  Widget _colorBtn(String label,Color color,VoidCallback onTap) =>
+    GestureDetector(onTap:onTap, child:Container(
+      padding:const EdgeInsets.symmetric(horizontal:12,vertical:11),
+      decoration:BoxDecoration(color:const Color(0xFF12121C),
+        borderRadius:BorderRadius.circular(10), border:Border.all(color:const Color(0xFF2A2A3A))),
+      child:Row(children:[
+        Container(width:26,height:26,decoration:BoxDecoration(color:color,
+          borderRadius:BorderRadius.circular(6), border:Border.all(color:Colors.white24))),
+        const SizedBox(width:8),
+        Text(label,style:const TextStyle(color:Colors.grey,fontSize:12)),
+      ])));
+
+  InputDecoration _deco(String hint) => InputDecoration(
+    hintText:hint, hintStyle:const TextStyle(color:Colors.grey), filled:true,
+    fillColor:const Color(0xFF12121C),
+    contentPadding:const EdgeInsets.symmetric(horizontal:14,vertical:12),
+    border:OutlineInputBorder(borderRadius:BorderRadius.circular(10),borderSide:const BorderSide(color:Color(0xFF2A2A3A))),
+    enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(10),borderSide:const BorderSide(color:Color(0xFF2A2A3A))),
+    focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(10),borderSide:const BorderSide(color:Color(0xFFFF6600))));
+}
+""")
+
+          print("✅ 모든 소스 파일 생성 완료!")
+          PYEOF
+
+      - name: 패키지 설치
+        run: cd project && flutter pub get
+
+      - name: APK 빌드
+        run: |
+          cd project
+          flutter build apk \
+            --release \
+            --target-platform android-arm64 \
+            --no-shrink
+
+      - name: APK 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: 듀얼응원앱-APK
+          path: project/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
