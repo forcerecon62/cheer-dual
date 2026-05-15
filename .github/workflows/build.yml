@@ -82,7 +82,6 @@ jobs:
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
               <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
               <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
               <application
                   android:label="듀얼 응원 앱"
                   android:name="${applicationName}"
@@ -123,11 +122,7 @@ jobs:
             Widget build(BuildContext context) {
               return MaterialApp(
                 title: '듀얼 응원 앱',
-                debugShowCheckedModeBanner: false,
-                theme: ThemeData.dark().copyWith(
-                  scaffoldBackgroundColor: const Color(0xFF0B0B15),
-                  colorScheme: const ColorScheme.dark(primary: Color(0xFFFF6600), surface: Color(0xFF1A1A2E)),
-                ),
+                theme: ThemeData.dark(),
                 home: const HomeScreen(),
               );
             }
@@ -138,59 +133,32 @@ jobs:
           w('project/lib/models/cheer_settings.dart', """import 'dart:convert';
           import 'package:flutter/material.dart';
           class CheerSettings {
-            final String text, textColor, bgColor, fontFamily, direction, imageEffect, imagePosition;
-            final double fontSize, speed, imageOpacity, imageSizePct;
-            final bool scrolling, blinking;
-            final int blinkSpeedMs, startTimeMs, version;
-            final String? imageBase64;
+            final String text, textColor, bgColor, fontFamily, direction;
+            final double fontSize, speed;
+            final bool scrolling;
+            final int startTimeMs;
             const CheerSettings({
               this.text = '대구 FC 파이팅! 🔥', this.textColor = '#FF6600', this.bgColor = '#000022',
               this.fontFamily = 'Impact', this.fontSize = 88, this.scrolling = true,
-              this.direction = 'left', this.speed = 300, this.blinking = false,
-              this.blinkSpeedMs = 600, this.imageBase64, this.imageEffect = 'none',
-              this.imageOpacity = 1.0, this.imagePosition = 'after', this.imageSizePct = 60,
-              this.startTimeMs = 0, this.version = 0,
+              this.direction = 'left', this.speed = 300, this.startTimeMs = 0,
             });
             factory CheerSettings.initial() => CheerSettings(startTimeMs: DateTime.now().millisecondsSinceEpoch);
             factory CheerSettings.fromJson(Map<String, dynamic> j) => CheerSettings(
               text: j['text'] ?? '', textColor: j['textColor'] ?? '#FF6600', bgColor: j['bgColor'] ?? '#000022',
               fontFamily: j['fontFamily'] ?? 'Impact', fontSize: (j['fontSize'] ?? 88).toDouble(),
               scrolling: j['scrolling'] ?? true, direction: j['direction'] ?? 'left',
-              speed: (j['speed'] ?? 300).toDouble(), blinking: j['blinking'] ?? false,
-              blinkSpeedMs: j['blinkSpeedMs'] ?? 600, imageBase64: j['imageBase64'],
-              imageEffect: j['imageEffect'] ?? 'none', imageOpacity: (j['imageOpacity'] ?? 1.0).toDouble(),
-              imagePosition: j['imagePosition'] ?? 'after', imageSizePct: (j['imageSizePct'] ?? 60).toDouble(),
-              startTimeMs: j['startTimeMs'] ?? 0, version: j['version'] ?? 0,
+              speed: (j['speed'] ?? 300).toDouble(), startTimeMs: j['startTimeMs'] ?? 0,
             );
             Map<String, dynamic> toJson() => {
               'text': text, 'textColor': textColor, 'bgColor': bgColor, 'fontFamily': fontFamily,
-              'fontSize': fontSize, 'scrolling': scrolling, 'direction': direction, 'speed': speed,
-              'blinking': blinking, 'blinkSpeedMs': blinkSpeedMs, 'imageBase64': imageBase64,
-              'imageEffect': imageEffect, 'imageOpacity': imageOpacity, 'imagePosition': imagePosition,
-              'imageSizePct': imageSizePct, 'startTimeMs': startTimeMs, 'version': version,
+              'fontSize': fontSize, 'scrolling': scrolling, 'direction': direction, 'speed': speed, 'startTimeMs': startTimeMs,
             };
             String toJsonString() => jsonEncode(toJson());
             static CheerSettings fromJsonString(String s) => CheerSettings.fromJson(jsonDecode(s));
-            CheerSettings copyWith({
-              String? text, textColor, bgColor, fontFamily, direction, imageEffect, imagePosition, imageBase64,
-              double? fontSize, speed, imageOpacity, imageSizePct, bool? scrolling, blinking, clearImage = false,
-              int? blinkSpeedMs, startTimeMs, version,
-            }) => CheerSettings(
-              text: text ?? this.text, textColor: textColor ?? this.textColor, bgColor: bgColor ?? this.bgColor,
-              fontFamily: fontFamily ?? this.fontFamily, fontSize: fontSize ?? this.fontSize,
-              scrolling: scrolling ?? this.scrolling, direction: direction ?? this.direction,
-              speed: speed ?? this.speed, blinking: blinking ?? this.blinking,
-              blinkSpeedMs: blinkSpeedMs ?? this.blinkSpeedMs, imageBase64: clearImage ? null : (imageBase64 ?? this.imageBase64),
-              imageEffect: imageEffect ?? this.imageEffect, imageOpacity: imageOpacity ?? this.imageOpacity,
-              imagePosition: imagePosition ?? this.imagePosition, imageSizePct: imageSizePct ?? this.imageSizePct,
-              startTimeMs: startTimeMs ?? this.startTimeMs, version: version ?? this.version,
-            );
             Color get textColorValue => _hex(textColor);
             Color get bgColorValue => _hex(bgColor);
             static Color _hex(String h) => Color(int.parse('FF' + h.replaceAll('#', ''), radix: 16));
-            static String colorToHex(Color c) => '#${c.red.toRadixString(16).padLeft(2, '0')}${c.green.toRadixString(16).padLeft(2, '0')}${c.blue.toRadixString(16).padLeft(2, '0')}';
-            static const fontOptions = [{'label': 'Impact (굵음)', 'value': 'Impact'}, {'label': '맑은 고딕', 'value': 'MalgunGothic'}];
-            TextStyle get displayTextStyle => TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w900, fontSize: fontSize, color: textColorValue, letterSpacing: 4, shadows: [Shadow(color: textColorValue.withOpacity(0.5), blurRadius: 30)]);
+            TextStyle get displayTextStyle => TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w900, fontSize: fontSize, color: textColorValue);
           }
           """)
 
@@ -207,64 +175,30 @@ jobs:
             final _nearby = Nearby(); final _ids = <String>{};
             final _settingsCtrl = StreamController<CheerSettings>.broadcast();
             final _statusCtrl = StreamController<String>.broadcast();
-            final _connCtrl = StreamController<int>.broadcast();
             Stream<CheerSettings> get settingsStream => _settingsCtrl.stream;
             Stream<String> get statusStream => _statusCtrl.stream;
-            Stream<int> get connCountStream => _connCtrl.stream;
             NearbyService({required this.connType, required this.side});
             Future<void> start() async { side == TabletSide.left ? await _advertise() : await _discover(); }
             Future<void> _advertise() async {
-              try {
-                await _nearby.startAdvertising('왼쪽태블릿', Strategy.P2P_POINT_TO_POINT,
-                  onConnectionInitiated: _onInit, onConnectionResult: _onResult,
-                  onDisconnected: _onDisc, serviceId: _serviceId);
-                _log('📶 대기 중...');
-              } catch (e) { _log('❌ 에러: \$e'); }
+              try { await _nearby.startAdvertising('왼쪽태블릿', Strategy.P2P_POINT_TO_POINT, onConnectionInitiated: _onInit, onConnectionResult: _onResult, onDisconnected: _onDisc, serviceId: _serviceId); } catch (_) {}
             }
             Future<void> _discover() async {
               try {
                 await _nearby.startDiscovery('오른쪽태블릿', Strategy.P2P_POINT_TO_POINT,
                   onEndpointFound: (id, name, _) async {
                     try { await _nearby.requestConnection('오른쪽태블릿', id, onConnectionInitiated: _onInit, onConnectionResult: _onResult, onDisconnected: _onDisc); } catch (_) {}
-                  }, serviceId: _serviceId);
-                _log('🔍 검색 중...');
-              } catch (e) { _log('❌ 에러: \$e'); }
+                  },
+                  onEndpointLost: (id) { _log('기기 사라짐: $id'); }, // 필수로 포함되어야 함
+                  serviceId: _serviceId);
+              } catch (_) {}
             }
             void _onInit(String id, ConnectionInfo info) { _nearby.acceptConnection(id, onPayLoadRecieved: _onPayload, onPayloadTransferUpdate: (_, __) {}); }
-            void _onResult(String id, Status status) {
-              if (status == Status.CONNECTED) _ids.add(id); else _ids.remove(id);
-              _connCtrl.add(_ids.length);
-            }
-            void _onDisc(String id) { _ids.remove(id); _connCtrl.add(_ids.length); }
-            void _onPayload(String _, Payload p) {
-              if (p.type == PayloadType.BYTES && p.bytes != null) {
-                try { _settingsCtrl.add(CheerSettings.fromJsonString(String.fromCharCodes(p.bytes!))); } catch (_) {}
-              }
-            }
-            Future<bool> sendSettings(CheerSettings s) async {
-              final bytes = Uint8List.fromList(s.toJsonString().codeUnits);
-              for (final id in _ids) { try { await _nearby.sendBytesPayload(id, bytes); } catch (_) {} }
-              return _ids.isNotEmpty;
-            }
-            void dispose() { _nearby.stopAllEndpoints(); _settingsCtrl.close(); _statusCtrl.close(); _connCtrl.close(); }
+            void _onResult(String id, Status status) { if (status == Status.CONNECTED) _ids.add(id); else _ids.remove(id); }
+            void _onDisc(String id) { _ids.remove(id); }
+            void _onPayload(String _, Payload p) { if (p.type == PayloadType.BYTES && p.bytes != null) { try { _settingsCtrl.add(CheerSettings.fromJsonString(String.fromCharCodes(p.bytes!))); } catch (_) {} } }
+            Future<void> sendSettings(CheerSettings s) async { for (final id in _ids) { try { await _nearby.sendBytesPayload(id, Uint8List.fromList(s.toJsonString().codeUnits)); } catch (_) {} } }
+            void dispose() { _nearby.stopAllEndpoints(); _settingsCtrl.close(); _statusCtrl.close(); }
             void _log(String m) { if (!_statusCtrl.isClosed) _statusCtrl.add(m); }
-          }
-          """)
-
-          # ── lib/services/image_processor.dart ─────────────────
-          w('project/lib/services/image_processor.dart', """import 'dart:math';
-          import 'dart:typed_data';
-          import 'package:image/image.dart' as img;
-          class ImageProcessor {
-            static Future<Uint8List> compress(Uint8List raw) async {
-              final d = img.decodeImage(raw); if (d == null) return raw;
-              return Uint8List.fromList(img.encodeJpg(img.copyResize(d, width: 500), quality: 50));
-            }
-            static Future<Uint8List> sobelEdge(Uint8List raw) async {
-              final d = img.decodeImage(raw); if (d == null) return raw;
-              final out = img.sobel(img.grayscale(img.copyResize(d, width: 400)));
-              return Uint8List.fromList(img.encodePng(out));
-            }
           }
           """)
 
@@ -278,24 +212,18 @@ jobs:
             @override State<HomeScreen> createState() => _HomeScreenState();
           }
           class _HomeScreenState extends State<HomeScreen> {
-            TabletSide? _side; ConnType _conn = ConnType.wifiDirect;
-            Future<void> _start() async {
-              await [Permission.location, Permission.nearbyWifiDevices, Permission.bluetoothScan, Permission.bluetoothConnect, Permission.bluetoothAdvertise].request();
-              if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DisplayScreen(service: NearbyService(connType: _conn, side: _side!), side: _side!)));
-            }
+            TabletSide? _side;
             @override
             Widget build(BuildContext context) {
               return Scaffold(
                 body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Text('⚽ 듀얼 응원 앱', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFFFF6600))),
-                  const SizedBox(height: 40),
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    ElevatedButton(onPressed: () => setState(() => _side = TabletSide.left), style: ElevatedButton.styleFrom(backgroundColor: _side == TabletSide.left ? Colors.blue : Colors.grey), child: const Text('왼쪽')),
-                    const SizedBox(width: 20),
-                    ElevatedButton(onPressed: () => setState(() => _side = TabletSide.right), style: ElevatedButton.styleFrom(backgroundColor: _side == TabletSide.right ? Colors.orange : Colors.grey), child: const Text('오른쪽')),
-                  ]),
-                  const SizedBox(height: 40),
-                  ElevatedButton(onPressed: _side != null ? _start : null, child: const Text('시작하기')),
+                  ElevatedButton(onPressed: () => setState(() => _side = TabletSide.left), child: Text('왼쪽 (Host)', style: TextStyle(color: _side == TabletSide.left ? Colors.orange : Colors.grey))),
+                  ElevatedButton(onPressed: () => setState(() => _side = TabletSide.right), child: Text('오른쪽 (Client)', style: TextStyle(color: _side == TabletSide.right ? Colors.orange : Colors.grey))),
+                  const SizedBox(height: 20),
+                  ElevatedButton(onPressed: _side == null ? null : () async {
+                    await [Permission.location, Permission.nearbyWifiDevices, Permission.bluetoothScan, Permission.bluetoothConnect, Permission.bluetoothAdvertise].request();
+                    if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => DisplayScreen(service: NearbyService(connType: ConnType.wifiDirect, side: _side!), side: _side!)));
+                  }, child: const Text('시작하기'))
                 ])),
               );
             }
@@ -303,10 +231,7 @@ jobs:
           """)
 
           # ── lib/screens/display_screen.dart ───────────────────
-          w('project/lib/screens/display_screen.dart', """import 'dart:async';
-          import 'dart:convert';
-          import 'package:flutter/material.dart';
-          import 'package:flutter/services.dart';
+          w('project/lib/screens/display_screen.dart', """import 'package:flutter/material.dart';
           import '../models/cheer_settings.dart';
           import '../services/nearby_service.dart';
           class DisplayScreen extends StatefulWidget {
@@ -314,34 +239,21 @@ jobs:
             const DisplayScreen({super.key, required this.service, required this.side});
             @override State<DisplayScreen> createState() => _DisplayScreenState();
           }
-          class _DisplayScreenState extends State<DisplayScreen> with TickerProviderStateMixin {
+          class _DisplayScreenState extends State<DisplayScreen> {
             CheerSettings _s = CheerSettings.initial();
-            double _scrollPos = 0;
             @override
-            void initState() {
-              super.initState();
-              widget.service.settingsStream.listen((s) => setState(() => _s = s));
-              createTicker((_) {
-                if (!_s.scrolling) return;
-                setState(() { _scrollPos -= _s.speed / 60; if (_scrollPos < -2000) _scrollPos = 2000; });
-              }).start();
-              widget.service.start();
-              SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-            }
+            void initState() { super.initState(); widget.service.settingsStream.listen((s) => setState(() => _s = s)); widget.service.start(); }
             @override
             Widget build(BuildContext context) {
               return Scaffold(
                 backgroundColor: _s.bgColorValue,
-                body: Stack(children: [
-                  Positioned(left: _scrollPos, top: 0, bottom: 0, child: Center(child: Text(_s.text, style: _s.displayTextStyle))),
-                  if (widget.side == TabletSide.left) Positioned(bottom: 20, right: 20, child: FloatingActionButton(onPressed: () {}, child: const Icon(Icons.settings))),
-                ]),
+                body: Center(child: Text(_s.text, style: _s.displayTextStyle)),
               );
             }
           }
           """)
 
-          print("✅ 모든 소스 파일 생성 완료!")
+          print("✅ 소스 생성 완료!")
           PYEOF
 
       - name: 패키지 설치
