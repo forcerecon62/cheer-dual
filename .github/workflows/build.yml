@@ -46,7 +46,7 @@ jobs:
               dependencies:
                 flutter:
                   sdk: flutter
-                nearby_connections: ^4.0.0
+                nearby_connections: ^4.3.0
                 image_picker: ^1.0.7
                 image: ^4.1.3
                 permission_handler: ^11.3.0
@@ -314,7 +314,9 @@ jobs:
                 }
 
                 void _oi(String id, ConnectionInfo i) {
-                  _n.acceptConnection(id, onPayloadReceived: _op, onPayloadTransferUpdate: (_, __) {});
+                  _n.acceptConnection(id, onPayloadReceived: (endId, payload) {
+                    _op(endId, payload);
+                  });
                 }
 
                 void _or(String id, Status s) {
@@ -476,9 +478,9 @@ jobs:
                             Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
-                              child: Text(
-                                '1. 양쪽 태블릿 기기 WiFi 및 블루투스 활성화 필요\n2. 마스터(왼쪽) 기기에서 설정을 변경하면 동기화 정보가 즉시 전송됩니다.\n3. 동기화 오프셋 제어를 통해 디스플레이 싱크 수동 보정 가능',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12, height: 1.7),
+                              child: const Text(
+                                "1. 양쪽 태블릿 기기 WiFi 및 블루투스 활성화 필요\\n2. 마스터(왼쪽) 기기에서 설정을 변경하면 동기화 정보가 즉시 전송됩니다.\\n3. 동기화 오프셋 제어를 통해 디스플레이 싱크 수동 보정 가능",
+                                style: TextStyle(color: Colors.black45, fontSize: 12, height: 1.7),
                               ),
                             ),
                             const SizedBox(height: 28),
@@ -552,7 +554,7 @@ jobs:
                 State<DisplayScreen> createState() => _DS();
               }
 
-              class _DS extends State<DisplayScreen> with TicketProviderStateMixin {
+              class _DS extends State<DisplayScreen> with TickerProviderStateMixin {
                 CheerSettings _s = CheerSettings.initial();
                 late AnimationController _pc;
                 late Animation<Offset> _ps;
